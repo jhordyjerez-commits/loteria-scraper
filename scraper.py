@@ -1,14 +1,14 @@
 """
-Scraper de resultados de lotería dominicana - rdparty.com
-============================================================
-Lee automáticamente los resultados más recientes de varias loterías
-dominicanas y los guarda en un archivo JSON (resultados.json).
+Scraper de resultados de lotería dominicana - loteriasdominicanas.us
+========================================================================
+Version 2: usa loteriasdominicanas.us en vez de rdparty.com porque esta
+fuente sí trae los resultados del DIA ACTUAL en texto plano (sin
+JavaScript), con fecha y etiqueta "Actualizado" cuando el sorteo ya salio.
 
 Cómo funciona:
-- Cada lotería tiene su propia página en rdparty.com
-- El script entra a cada página, busca la tabla de "Últimos resultados"
-  y extrae fecha + números ganadores
-- Todo se guarda en resultados.json, organizado por lotería
+- Entra a la página principal de loteriasdominicanas.us
+- Busca cada bloque de resultado (nombre del juego + fecha + numeros)
+- Guarda todo en resultados.json, con fecha de cada sorteo
 
 Requisitos (instalar una sola vez):
     pip install requests beautifulsoup4
@@ -24,31 +24,9 @@ import re
 from datetime import datetime
 import os
 
-# ---------------------------------------------------------------------
-# CONFIGURACIÓN: mapea el nombre de tu lotería -> URL de rdparty.com
-# Agrega o quita líneas aquí según lo que necesites.
-# ---------------------------------------------------------------------
-LOTERIAS = {
-    "Quiniela Real":        "https://rdparty.com/quiniela-real/",
-    "Quiniela Leidsa":      "https://rdparty.com/quiniela-leidsa/",
-    "Loto Pool Leidsa":     "https://rdparty.com/loto-pool-leidsa/",
-    "Pega 3 Mas":           "https://rdparty.com/pega-3-mas/",
-    "Super Kino TV":        "https://rdparty.com/super-kino-tv/",
-    "Loto Leidsa":          "https://rdparty.com/loto-leidsa/",
-    "Super Pale":           "https://rdparty.com/super-pale/",
-    "Gana Mas":             "https://rdparty.com/gana-mas/",
-    "Quiniela Nacional":    "https://rdparty.com/quiniela-loteria-nacional/",
-    "Juega Mas Pega Mas":   "https://rdparty.com/juega-mas-pega-mas/",
-    "Quiniela Loteka":      "https://rdparty.com/quiniela-loteka/",
-    "Mega Chances":         "https://rdparty.com/mega-chances/",
-    "MegaLotto":            "https://rdparty.com/megalotto/",
-    "La Primera":           "https://rdparty.com/resultados-la-primera/",
-    "La Suerte":            "https://rdparty.com/resultados-la-suerte/",
-    "LoteDom":              "https://rdparty.com/resultados-lotedom/",
-}
+URL_PRINCIPAL = "https://www.loteriasdominicanas.us/"
 
 HEADERS = {
-    # Simula un navegador normal para evitar bloqueos básicos
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -59,69 +37,107 @@ HEADERS = {
 SALIDA_JSON = os.path.join(os.path.dirname(__file__), "resultados.json")
 
 
-def extraer_resultados(nombre, url):
+def extraer_resultados():
     """
-    Descarga la página de una lotería y extrae la tabla
-    'Últimos resultados de X'. Devuelve una lista de dicts:
-    [{"fecha": "19 de julio 2026", "numeros": ["35", "48", "12"]}, ...]
+    Descarga la página principal y extrae todos los bloques de resultados.
+    Cada bloque tiene: nombre del sorteo, fecha, numeros ganadores, y si
+    dice "Actualizado" (significa que es el resultado mas reciente de hoy).
+
+    Devuelve un diccionario:
+    {
+        "Gana Mas": {"fecha": "11 Agosto 2026", "numeros": ["88","28","03"], "actualizado": True},
+        "Quiniela Nacional": {"fecha": "10 Agosto 2026", "numeros": ["07","76","66"], "actualizado": False},
+        ...
+    }
     """
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp = requests.get(URL_PRINCIPAL, headers=HEADERS, timeout=15)
         resp.raise_for_status()
     except requests.RequestException as e:
-        print(f"  [ERROR] No se pudo descargar {nombre}: {e}")
-        return []
+        print(f"[ERROR] No se pudo descargar la pagina: {e}")
+        return {}
 
     soup = BeautifulSoup(resp.text, "html.parser")
-    resultados = []
+    resultados = {}
 
-    # Buscamos la primera tabla de la página (ahí suele estar el historial)
-    tabla = soup.find("table")
-    if not tabla:
-        print(f"  [AVISO] No se encontró tabla de resultados para {nombre}")
-        return []
+    # Cada sorteo esta dentro de un enlace <a> que apunta a su pagina
+    # individual, y cerca de el estan la fecha y los numeros.
+    # Buscamos todos los enlaces que parecen ser de un sorteo especifico
+    # (contienen texto y estan seguidos de una lista de numeros).
+    enlaces = soup.find_all("a", href=True)
 
-    filas = tabla.find_all("tr")
-    for fila in filas:
-        celdas = [c.get_text(strip=True) for c in fila.find_all(["td", "th"])]
-        if len(celdas) < 2:
+    for enlace in enlaces:
+        nombre = enlace.get_text(strip=True)
+        href = enlace["href"]
+
+        # Filtramos solo enlaces que parecen ser de sorteos
+        # (tienen texto y no son enlaces de menu/footer)
+        if not nombre or len(nombre) < 3:
             continue
-        fecha, numeros_texto = celdas[0], celdas[1]
-
-        # Saltar la fila de encabezado ("Fecha", "Números ganadores")
-        if fecha.lower() in ("fecha", "") or not re.search(r"\d", fecha):
+        if any(skip in href.lower() for skip in
+               ["contacto", "nosotros", "terminos", "javascript"]):
             continue
 
-        # Los números vienen separados por comas, ej: "35, 48, 12"
-        numeros = [n.strip() for n in numeros_texto.split(",") if n.strip()]
-        if numeros:
-            resultados.append({"fecha": fecha, "numeros": numeros})
+        # Buscamos el contenedor padre que agrupa nombre + fecha + numeros
+        contenedor = enlace.find_parent()
+        if not contenedor:
+            continue
+
+        texto_completo = contenedor.get_text(" ", strip=True)
+
+        # Buscar fecha en formato "11 Agosto 2026"
+        match_fecha = re.search(
+            r"(\d{1,2}\s+(?:Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|"
+            r"Agosto|Septiembre|Octubre|Noviembre|Diciembre)\s+\d{4})",
+            texto_completo
+        )
+        if not match_fecha:
+            continue
+        fecha = match_fecha.group(1)
+
+        # Buscar numeros de 2 digitos despues de la fecha
+        texto_despues_fecha = texto_completo[match_fecha.end():]
+        numeros = re.findall(r"\b(\d{2})\b", texto_despues_fecha)
+        numeros = numeros[:6]  # maximo 6 numeros (para loto 5, etc.)
+
+        if not numeros:
+            continue
+
+        actualizado = "actualizado" in texto_completo.lower()
+
+        # Evitar duplicados: si ya existe, solo sobreescribir si es mas
+        # completo (tiene mas numeros) o si dice actualizado
+        if nombre not in resultados or actualizado:
+            resultados[nombre] = {
+                "fecha": fecha,
+                "numeros": numeros,
+                "actualizado": actualizado,
+            }
 
     return resultados
 
 
 def main():
     print("=" * 60)
-    print("Scraper de Loterías Dominicanas - rdparty.com")
+    print("Scraper de Loterias Dominicanas - loteriasdominicanas.us")
     print(f"Ejecutado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
 
-    data_final = {}
+    resultados = extraer_resultados()
 
-    for nombre, url in LOTERIAS.items():
-        print(f"\n-> Consultando {nombre}...")
-        resultados = extraer_resultados(nombre, url)
-        if resultados:
-            print(f"   OK: {len(resultados)} sorteos encontrados. "
-                  f"Último: {resultados[0]['fecha']} -> {resultados[0]['numeros']}")
-        else:
-            print(f"   Sin resultados (revisar manualmente esta lotería)")
-        data_final[nombre] = resultados
+    if not resultados:
+        print("\n[AVISO] No se encontraron resultados. Revisar la pagina "
+              "manualmente, puede que haya cambiado su diseno.")
+    else:
+        print(f"\nSe encontraron {len(resultados)} sorteos:\n")
+        for nombre, datos in resultados.items():
+            marca = " (HOY)" if datos["actualizado"] else ""
+            print(f"  {nombre}{marca}: {datos['fecha']} -> {datos['numeros']}")
 
-    # Guardamos todo en JSON con fecha de última actualización
     salida = {
         "ultima_actualizacion": datetime.now().isoformat(),
-        "loterias": data_final,
+        "fuente": URL_PRINCIPAL,
+        "loterias": resultados,
     }
 
     with open(SALIDA_JSON, "w", encoding="utf-8") as f:
