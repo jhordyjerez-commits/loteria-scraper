@@ -1,20 +1,8 @@
 """
 Scraper de resultados de lotería dominicana - loteriasdominicanas.us
 ========================================================================
-Version 2: usa loteriasdominicanas.us en vez de rdparty.com porque esta
-fuente sí trae los resultados del DIA ACTUAL en texto plano (sin
-JavaScript), con fecha y etiqueta "Actualizado" cuando el sorteo ya salio.
-
-Cómo funciona:
-- Entra a la página principal de loteriasdominicanas.us
-- Busca cada bloque de resultado (nombre del juego + fecha + numeros)
-- Guarda todo en resultados.json, con fecha de cada sorteo
-
-Requisitos (instalar una sola vez):
-    pip install requests beautifulsoup4
-
-Uso:
-    python scraper.py
+Version 2: usa loteriasdominicanas.us porque trae resultados del DIA
+ACTUAL en texto plano (sin JavaScript).
 """
 
 import requests
@@ -38,18 +26,6 @@ SALIDA_JSON = os.path.join(os.path.dirname(__file__), "resultados.json")
 
 
 def extraer_resultados():
-    """
-    Descarga la página principal y extrae todos los bloques de resultados.
-    Cada bloque tiene: nombre del sorteo, fecha, numeros ganadores, y si
-    dice "Actualizado" (significa que es el resultado mas reciente de hoy).
-
-    Devuelve un diccionario:
-    {
-        "Gana Mas": {"fecha": "11 Agosto 2026", "numeros": ["88","28","03"], "actualizado": True},
-        "Quiniela Nacional": {"fecha": "10 Agosto 2026", "numeros": ["07","76","66"], "actualizado": False},
-        ...
-    }
-    """
     try:
         resp = requests.get(URL_PRINCIPAL, headers=HEADERS, timeout=15)
         resp.raise_for_status()
@@ -60,32 +36,24 @@ def extraer_resultados():
     soup = BeautifulSoup(resp.text, "html.parser")
     resultados = {}
 
-    # Cada sorteo esta dentro de un enlace <a> que apunta a su pagina
-    # individual, y cerca de el estan la fecha y los numeros.
-    # Buscamos todos los enlaces que parecen ser de un sorteo especifico
-    # (contienen texto y estan seguidos de una lista de numeros).
     enlaces = soup.find_all("a", href=True)
 
     for enlace in enlaces:
         nombre = enlace.get_text(strip=True)
         href = enlace["href"]
 
-        # Filtramos solo enlaces que parecen ser de sorteos
-        # (tienen texto y no son enlaces de menu/footer)
         if not nombre or len(nombre) < 3:
             continue
         if any(skip in href.lower() for skip in
                ["contacto", "nosotros", "terminos", "javascript"]):
             continue
 
-        # Buscamos el contenedor padre que agrupa nombre + fecha + numeros
         contenedor = enlace.find_parent()
         if not contenedor:
             continue
 
         texto_completo = contenedor.get_text(" ", strip=True)
 
-        # Buscar fecha en formato "11 Agosto 2026"
         match_fecha = re.search(
             r"(\d{1,2}\s+(?:Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|"
             r"Agosto|Septiembre|Octubre|Noviembre|Diciembre)\s+\d{4})",
@@ -95,18 +63,15 @@ def extraer_resultados():
             continue
         fecha = match_fecha.group(1)
 
-        # Buscar numeros de 2 digitos despues de la fecha
         texto_despues_fecha = texto_completo[match_fecha.end():]
         numeros = re.findall(r"\b(\d{2})\b", texto_despues_fecha)
-        numeros = numeros[:6]  # maximo 6 numeros (para loto 5, etc.)
+        numeros = numeros[:6]
 
         if not numeros:
             continue
 
         actualizado = "actualizado" in texto_completo.lower()
 
-        # Evitar duplicados: si ya existe, solo sobreescribir si es mas
-        # completo (tiene mas numeros) o si dice actualizado
         if nombre not in resultados or actualizado:
             resultados[nombre] = {
                 "fecha": fecha,
@@ -126,8 +91,7 @@ def main():
     resultados = extraer_resultados()
 
     if not resultados:
-        print("\n[AVISO] No se encontraron resultados. Revisar la pagina "
-              "manualmente, puede que haya cambiado su diseno.")
+        print("\n[AVISO] No se encontraron resultados.")
     else:
         print(f"\nSe encontraron {len(resultados)} sorteos:\n")
         for nombre, datos in resultados.items():
