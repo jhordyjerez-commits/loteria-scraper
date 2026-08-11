@@ -1,0 +1,32 @@
+name: Actualizar resultados de lotería
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el código del repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: pip install requests beautifulsoup4
+
+      - name: Correr el scraper
+        run: python scraper.py
+
+      - name: Guardar los resultados actualizados en el repositorio
+        run: |
+          git config --global user.name "Actualizador Automático"
+          git config --global user.email "actions@github.com"
+          git add resultados.json
+          git diff --staged --quiet || git commit -m "Actualizar resultados $(date +'%Y-%m-%d')"
+          git push
