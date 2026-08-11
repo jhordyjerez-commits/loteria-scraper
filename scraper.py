@@ -1,28 +1,37 @@
 """
-Scraper de resultados de loterías dominicanas — premios.do
-============================================================
-Busca los resultados más recientes de cada lotería y los guarda en
-resultados.json con esta forma:
+Scraper de resultados de loterías dominicanas — premios.do  (v2, corregido)
+=============================================================================
+CAMBIO IMPORTANTE respecto a la v1: la primera versión buscaba cualquier
+patrón "número · número · número" cerca de una fecha, y eso hacía que
+agarrara por error el texto de premios que aparece en TODAS las páginas
+("Primer premio: RD$60... Segundo premio: RD$8... Tercer premio: RD$4...").
+Por eso todas las loterías salían con números parecidos/repetidos.
 
+La corrección: los números reales del sorteo aparecen siempre pegados a
+la HORA exacta del sorteo, con este formato específico:
+
+    12:00PM · 13 · 52 · 72
+
+Ese patrón (hora + tres números separados por "·") es mucho más específico
+y no se confunde con el texto de premios. Además, se descarta cualquier
+coincidencia que tenga la palabra "RD$" a menos de 60 caracteres de
+distancia, como filtro extra de seguridad.
+
+Formato de salida (resultados.json):
 {
-  "actualizado": "2026-08-12T20:05:00",
+  "actualizado": "2026-08-12T20:05:00+00:00",
   "loterias": {
     "la_primera_noche": {"fecha": "2026-08-12", "numeros": [43, 86, 57]},
-    "loteka":            {"fecha": "2026-08-12", "numeros": [23, 76, 44]},
-    "lotedom":            {"fecha": "2026-08-12", "numeros": [71, 35, 33]},
-    "la_primera_12pm":    {"fecha": "2026-08-12", "numeros": [65, 66, 42]},
-    "anguila_12pm":       {"fecha": "2026-08-12", "numeros": [75, 98, 4]},
-    "gana_mas":           {"fecha": "2026-08-12", "numeros": [85, 47, 97]},
-    "leidsa":             {"fecha": "2026-08-12", "numeros": [43, 35, 12]}
+    ...
   },
-  "errores": []   <- si alguna lotería falla, aparece aquí en vez de romper todo
+  "errores": []
 }
 
-NOTA IMPORTANTE: este scraper se escribió sin poder probarlo en vivo (el entorno
-donde se generó no tiene acceso a internet). La primera corrida real en GitHub
-Actions es la prueba real. Si algo falla, revisa el log de la Action: cada
-lotería que falle queda registrada en "errores" con el motivo, y las demás
-loterías se guardan igual (un fallo no tumba todo el proceso).
+NOTA: este scraper se escribió sin poder probarlo en vivo contra internet
+real (el entorno donde se generó no tiene acceso a la red). Está basado en
+fragmentos reales de esas páginas que sí pude ver mediante búsqueda. Si al
+correrlo en GitHub Actions algo sigue fallando o saliendo raro, pégame el
+resultados.json o el log de error y lo ajusto de nuevo.
 """
 
 import json
@@ -32,7 +41,6 @@ from datetime import datetime, timezone
 
 import requests
 
-# Cada lotería con su URL en premios.do y una llave interna para el JSON
 FUENTES = {
     "la_primera_noche": "https://premios.do/resultados-la-primera-noche-hoy",
     "loteka":            "https://premios.do/resultados-loteka-hoy",
@@ -44,70 +52,82 @@ FUENTES = {
 }
 
 HEADERS = {
-    # Algunos sitios bloquean peticiones sin un User-Agent que parezca un navegador real
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     )
 }
 
-# Meses en español, para reconocer fechas tipo "12 de agosto de 2026"
 MESES = {
     "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
     "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10,
     "noviembre": 11, "diciembre": 12,
 }
 
+# Patrón específico: hora (12:00PM, 7:00 PM, etc.) seguida de 3 números separados por "·"
+PATRON_RESULTADO = re.compile(
+    r"(\d{1,2}:\d{2}\s*[APap][Mm])\s*[·•]\s*(\d{1,3})\s*[·•]\s*(\d{1,3})\s*[·•]\s*(\d{1,3})"
+)
 
-def extraer_fecha_y_numeros(texto_pagina):
+PATRON_FECHA = re.compile(
+    r"(\d{1,2})\s+de\s+(" + "|".join(MESES.keys()) + r")\s+de\s+(\d{4})",
+    re.IGNORECASE,
+)
+
+
+def limpiar_html(html):
+    texto = re.sub(r"<[^>]+>", " ", html)
+    texto = re.sub(r"\s+", " ", texto)
+    return texto
+
+
+def extraer_resultado(texto):
     """
-    Busca en el texto de la página el patrón:
-        <día de la semana> <día> de <mes> de <año> ... NN · NN · NN
-    y devuelve (fecha_iso, [n1, n2, n3]) del resultado MÁS RECIENTE que
-    encuentre (asumiendo que la página lista del más nuevo al más viejo).
-
-    Si no encuentra nada, devuelve (None, None).
+    Recorre TODAS las coincidencias del patrón hora+números, descarta las
+    que tengan 'RD$' cerca (texto de premios), y se queda con la primera
+    coincidencia válida (la más reciente, porque la página lista de más
+    nuevo a más viejo). Busca también la fecha más cercana ANTES de esa
+    coincidencia.
     """
-    patron_fecha = re.compile(
-        r"(\d{1,2})\s+de\s+(" + "|".join(MESES.keys()) + r")\s+de\s+(\d{4})",
-        re.IGNORECASE,
-    )
-    patron_numeros = re.compile(r"(\d{1,3})\s*[·\-\|]\s*(\d{1,3})\s*[·\-\|]\s*(\d{1,3})")
+    for match in PATRON_RESULTADO.finditer(texto):
+        inicio, fin = match.span()
+        contexto = texto[max(0, inicio - 60): fin + 10]
+        if "RD$" in contexto or "RD $" in contexto:
+            continue  # es texto de premios, no un resultado real; seguimos buscando
 
-    fecha_match = patron_fecha.search(texto_pagina)
-    if not fecha_match:
-        return None, None
+        numeros = [int(match.group(i)) for i in (2, 3, 4)]
+        numeros = [100 if n == 0 else n for n in numeros]
 
-    dia, mes_txt, anio = fecha_match.groups()
-    mes = MESES[mes_txt.lower()]
-    fecha_iso = f"{int(anio):04d}-{mes:02d}-{int(dia):02d}"
+        # Buscar la fecha más cercana que aparezca ANTES de este resultado
+        texto_antes = texto[:inicio]
+        fecha_match = None
+        for fm in PATRON_FECHA.finditer(texto_antes):
+            fecha_match = fm  # nos quedamos con la última (la más cercana al resultado)
+        if fecha_match:
+            dia, mes_txt, anio = fecha_match.groups()
+            mes = MESES[mes_txt.lower()]
+            fecha_iso = f"{int(anio):04d}-{mes:02d}-{int(dia):02d}"
+        else:
+            fecha_iso = None
 
-    # Buscamos los números de lotería que aparezcan DESPUÉS de la fecha encontrada
-    resto = texto_pagina[fecha_match.end():]
-    numeros_match = patron_numeros.search(resto)
-    if not numeros_match:
-        # A veces los números aparecen ANTES de la fecha en el layout; probamos también ahí
-        numeros_match = patron_numeros.search(texto_pagina[: fecha_match.start()])
-        if not numeros_match:
-            return fecha_iso, None
+        return fecha_iso, numeros
 
-    numeros = [int(x) for x in numeros_match.groups()]
-    # Normalizar "00" -> 100, como usa la app (1-100 en vez de 0-99)
-    numeros = [100 if n == 0 else n for n in numeros]
-    return fecha_iso, numeros
+    return None, None
 
 
 def obtener_resultado(nombre, url):
     resp = requests.get(url, headers=HEADERS, timeout=20)
     resp.raise_for_status()
-    texto = resp.text
-    # Quitamos etiquetas HTML de forma simple para dejar solo texto visible
-    texto_limpio = re.sub(r"<[^>]+>", " ", texto)
-    texto_limpio = re.sub(r"\s+", " ", texto_limpio)
+    texto = limpiar_html(resp.text)
 
-    fecha, numeros = extraer_fecha_y_numeros(texto_limpio)
-    if not fecha or not numeros:
-        raise ValueError(f"No se pudo extraer fecha/números para '{nombre}' desde {url}")
+    fecha, numeros = extraer_resultado(texto)
+    if not numeros:
+        raise ValueError(
+            f"No se encontró un patrón válido de 'hora · num · num · num' "
+            f"(sin 'RD$' cerca) para '{nombre}' en {url}"
+        )
+    if not fecha:
+        fecha = "desconocida"
 
     return {"fecha": fecha, "numeros": numeros}
 
@@ -123,7 +143,7 @@ def main():
         try:
             resultado["loterias"][nombre] = obtener_resultado(nombre, url)
             print(f"OK  {nombre}: {resultado['loterias'][nombre]}")
-        except Exception as exc:  # noqa: BLE001 — queremos capturar cualquier fallo y seguir
+        except Exception as exc:  # noqa: BLE001
             mensaje = f"{nombre}: {exc}"
             resultado["errores"].append(mensaje)
             print(f"FALLO  {mensaje}", file=sys.stderr)
@@ -134,7 +154,6 @@ def main():
     print(f"\nGuardado resultados.json con {len(resultado['loterias'])} loterías "
           f"y {len(resultado['errores'])} errores.")
 
-    # Si TODAS fallaron, marcamos el proceso como fallido para que GitHub Actions lo notifique
     if not resultado["loterias"]:
         sys.exit(1)
 
