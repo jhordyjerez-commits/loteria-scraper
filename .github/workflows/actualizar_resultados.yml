@@ -1,4 +1,4 @@
-name: Actualizar resultados de lotería
+name: Actualizar resultados de loteria
 
 on:
   schedule:
@@ -23,11 +23,11 @@ jobs:
       - name: Instalar navegador de Playwright
         run: playwright install --with-deps chromium
 
-      - name: Correr el scraper
+      - name: Correr el raspador
         run: python scraper.py
-        
 
-          
+      - name: Detective
+        run: python detective.py
 
       - name: Guardar los resultados actualizados en el repositorio
         run: |
