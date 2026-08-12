@@ -57,7 +57,8 @@ MESES = {
 # Línea con "DD de mes de AAAA   H:MMPM" (la hora puede o no tener espacio
 # antes de AM/PM, ej. "7:00PM" o "7:00 PM")
 PATRON_FECHA_HORA = re.compile(
-    r"(\d{1,2})\s+de\s+(" + "|".join(MESES.keys()) + r")\s+de\s+(\d{4})"
+    r"(\d{1,2})\s+de\s+(" + "|".join(MESES.keys()) + r")"
+    r"(?:\s+de\s+|\s*,\s*)(\d{4})"  # acepta "de 2026" O ", 2026"
     r"\s+\d{1,2}:\d{2}\s*[APap][Mm]",
     re.IGNORECASE,
 )
