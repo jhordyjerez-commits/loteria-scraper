@@ -1,15 +1,24 @@
 """
-Scraper de resultados de loterías dominicanas — premios.do  (v3, con Playwright)
-=================================================================================
-POR QUÉ CAMBIÓ: las versiones anteriores usaban `requests`, que solo descarga
-el HTML que manda el servidor SIN ejecutar JavaScript. Las páginas de
-premios.do cargan los números ganadores con JavaScript después de la carga
-inicial, así que `requests` nunca llegaba a verlos (por eso todo fallaba con
-"no se encontró un patrón válido").
+Scraper de resultados de loterías dominicanas — premios.do  (v4, patrón corregido)
+====================================================================================
+QUÉ CAMBIÓ EN ESTA VERSIÓN: el script "detective" mostró que el formato real
+de la página NO es "hora · num · num · num" en una sola línea. El formato
+real es línea por línea, así:
 
-La solución: usar Playwright, que abre un navegador real (Chromium) sin
-interfaz gráfica, espera a que la página termine de cargar su JavaScript,
-y AHÍ SÍ lee el texto ya completo.
+    Loteka
+     Martes 11 de agosto, 2026  7:50PM
+    79
+    18
+    84
+
+Es decir: nombre de la lotería, luego una línea con "DD de mes de AAAA  H:MMPM",
+y después cada número ganador en su PROPIA línea, sin ningún símbolo "·" ni
+separador. Por eso el patrón anterior nunca encontraba nada.
+
+También se cambió `wait_until="networkidle"` por `"domcontentloaded"` en
+la_primera_noche (y en todas), porque esa página nunca queda "en reposo" de
+red (scripts de analytics/ads siguen corriendo) y eso causaba el timeout de
+30 segundos.
 
 Formato de salida (resultados.json) — igual que antes:
 {
@@ -20,10 +29,6 @@ Formato de salida (resultados.json) — igual que antes:
   },
   "errores": []
 }
-
-IMPORTANTE: este cambio requiere instalar el navegador de Playwright en el
-GitHub Action (ver instrucciones que te doy aparte para el archivo .yml).
-Sin ese paso, este script fallará con un error de "navegador no encontrado".
 """
 
 import json
@@ -49,49 +54,72 @@ MESES = {
     "noviembre": 11, "diciembre": 12,
 }
 
-# Hora (12:00PM, 7:00 PM, etc.) seguida de 3 números separados por "·"
-PATRON_RESULTADO = re.compile(
-    r"(\d{1,2}:\d{2}\s*[APap][Mm])\s*[·•]\s*(\d{1,3})\s*[·•]\s*(\d{1,3})\s*[·•]\s*(\d{1,3})"
-)
-PATRON_FECHA = re.compile(
-    r"(\d{1,2})\s+de\s+(" + "|".join(MESES.keys()) + r")\s+de\s+(\d{4})",
+# Línea con "DD de mes de AAAA   H:MMPM" (la hora puede o no tener espacio
+# antes de AM/PM, ej. "7:00PM" o "7:00 PM")
+PATRON_FECHA_HORA = re.compile(
+    r"(\d{1,2})\s+de\s+(" + "|".join(MESES.keys()) + r")\s+de\s+(\d{4})"
+    r"\s+\d{1,2}:\d{2}\s*[APap][Mm]",
     re.IGNORECASE,
 )
 
+# Una línea que es SOLO un número (el resultado ganador), 1 a 3 dígitos
+PATRON_NUMERO_LINEA = re.compile(r"^\d{1,3}$")
+
 
 def extraer_resultado(texto):
-    for match in PATRON_RESULTADO.finditer(texto):
-        numeros = [int(match.group(i)) for i in (2, 3, 4)]
-        if any(n > 99 for n in numeros):
+    """
+    Busca la primera línea con fecha+hora (la más reciente aparece primero
+    en la página) y toma los 3 números que vienen en las líneas siguientes.
+    """
+    lineas = texto.split("\n")
+
+    for i, linea in enumerate(lineas):
+        m = PATRON_FECHA_HORA.search(linea)
+        if not m:
             continue
-        numeros = [100 if n == 0 else n for n in numeros]
 
-        texto_antes = texto[:match.start()]
-        fecha_match = None
-        for fm in PATRON_FECHA.finditer(texto_antes):
-            fecha_match = fm
-        if fecha_match:
-            dia, mes_txt, anio = fecha_match.groups()
+        numeros = []
+        j = i + 1
+        while j < len(lineas) and len(numeros) < 3:
+            candidata = lineas[j].strip()
+            if candidata == "":
+                j += 1
+                continue
+            if PATRON_NUMERO_LINEA.match(candidata):
+                n = int(candidata)
+                if n > 99:
+                    # No es un número de resultado válido; dejamos de buscar
+                    # en este bloque de fecha.
+                    break
+                numeros.append(100 if n == 0 else n)
+                j += 1
+            else:
+                # Apareció texto que no es número antes de completar los 3;
+                # este bloque de fecha no tiene el formato esperado.
+                break
+
+        if len(numeros) == 3:
+            dia, mes_txt, anio = m.group(1), m.group(2), m.group(3)
             fecha_iso = f"{int(anio):04d}-{MESES[mes_txt.lower()]:02d}-{int(dia):02d}"
-        else:
-            fecha_iso = None
-
-        return fecha_iso, numeros
+            return fecha_iso, numeros
 
     return None, None
 
 
 def obtener_resultado(page, nombre, url):
-    page.goto(url, wait_until="networkidle", timeout=30000)
+    # domcontentloaded en vez de networkidle: evita el timeout que ocurría
+    # en la_primera_noche por scripts que nunca dejan la red "en reposo".
+    page.goto(url, wait_until="domcontentloaded", timeout=30000)
     # Esperamos un poco extra por si el JS tarda en pintar los números
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(4000)
     texto = page.inner_text("body")
 
     fecha, numeros = extraer_resultado(texto)
     if not numeros:
         raise ValueError(
-            f"No se encontró un patrón válido de 'hora · num · num · num' "
-            f"para '{nombre}' en {url} (aunque ya se esperó a que cargara el JS)"
+            f"No se encontró un patrón válido de 'fecha/hora + 3 números en "
+            f"líneas separadas' para '{nombre}' en {url} (aunque ya se "
+            f"esperó a que cargara el JS)"
         )
     if not fecha:
         fecha = "desconocida"
