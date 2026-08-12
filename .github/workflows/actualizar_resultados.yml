@@ -25,6 +25,7 @@ jobs:
 
       - name: Correr el raspador
         run: python scraper.py
+        continue-on-error: true
 
       - name: Detective
         run: python detective.py
