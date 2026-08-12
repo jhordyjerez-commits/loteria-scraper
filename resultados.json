@@ -1,62 +1,13 @@
 {
-  "actualizado": "2026-08-11T22:57:29+00:00",
-  "loterias": {
-    "la_primera_noche": {
-      "fecha": "2026-08-10",
-      "numeros": [
-        26,
-        8,
-        10
-      ]
-    },
-    "loteka": {
-      "fecha": "2026-08-10",
-      "numeros": [
-        26,
-        8,
-        10
-      ]
-    },
-    "lotedom": {
-      "fecha": "2026-08-11",
-      "numeros": [
-        26,
-        8,
-        11
-      ]
-    },
-    "la_primera_12pm": {
-      "fecha": "2026-08-11",
-      "numeros": [
-        26,
-        8,
-        11
-      ]
-    },
-    "anguila_12pm": {
-      "fecha": "2026-08-11",
-      "numeros": [
-        26,
-        8,
-        11
-      ]
-    },
-    "gana_mas": {
-      "fecha": "2026-08-11",
-      "numeros": [
-        26,
-        8,
-        11
-      ]
-    },
-    "leidsa": {
-      "fecha": "2026-08-10",
-      "numeros": [
-        26,
-        8,
-        10
-      ]
-    }
-  },
-  "errores": []
+  "actualizado": "2026-08-12T00:06:06+00:00",
+  "loterias": {},
+  "errores": [
+    "la_primera_noche: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"https://premios.do/resultados-la-primera-noche-hoy\", waiting until \"networkidle\"\n",
+    "loteka: No se encontró un patrón válido de 'hora · num · num · num' para 'loteka' en https://premios.do/resultados-loteka-hoy (aunque ya se esperó a que cargara el JS)",
+    "lotedom: No se encontró un patrón válido de 'hora · num · num · num' para 'lotedom' en https://premios.do/resultados-lotedom-hoy (aunque ya se esperó a que cargara el JS)",
+    "la_primera_12pm: No se encontró un patrón válido de 'hora · num · num · num' para 'la_primera_12pm' en https://premios.do/resultados-la-primera-hoy (aunque ya se esperó a que cargara el JS)",
+    "anguila_12pm: No se encontró un patrón válido de 'hora · num · num · num' para 'anguila_12pm' en https://premios.do/resultados-anguilla-12pm-hoy (aunque ya se esperó a que cargara el JS)",
+    "gana_mas: No se encontró un patrón válido de 'hora · num · num · num' para 'gana_mas' en https://premios.do/resultados-gana-mas-hoy (aunque ya se esperó a que cargara el JS)",
+    "leidsa: No se encontró un patrón válido de 'hora · num · num · num' para 'leidsa' en https://premios.do/resultados-leidsa-hoy (aunque ya se esperó a que cargara el JS)"
+  ]
 }
