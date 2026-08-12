@@ -1,13 +1,62 @@
 {
-  "actualizado": "2026-08-12T00:18:04+00:00",
-  "loterias": {},
-  "errores": [
-    "la_primera_noche: No se encontró un patrón válido de 'fecha/hora + 3 números en líneas separadas' para 'la_primera_noche' en https://premios.do/resultados-la-primera-noche-hoy (aunque ya se esperó a que cargara el JS)",
-    "loteka: No se encontró un patrón válido de 'fecha/hora + 3 números en líneas separadas' para 'loteka' en https://premios.do/resultados-loteka-hoy (aunque ya se esperó a que cargara el JS)",
-    "lotedom: No se encontró un patrón válido de 'fecha/hora + 3 números en líneas separadas' para 'lotedom' en https://premios.do/resultados-lotedom-hoy (aunque ya se esperó a que cargara el JS)",
-    "la_primera_12pm: No se encontró un patrón válido de 'fecha/hora + 3 números en líneas separadas' para 'la_primera_12pm' en https://premios.do/resultados-la-primera-hoy (aunque ya se esperó a que cargara el JS)",
-    "anguila_12pm: No se encontró un patrón válido de 'fecha/hora + 3 números en líneas separadas' para 'anguila_12pm' en https://premios.do/resultados-anguilla-12pm-hoy (aunque ya se esperó a que cargara el JS)",
-    "gana_mas: No se encontró un patrón válido de 'fecha/hora + 3 números en líneas separadas' para 'gana_mas' en https://premios.do/resultados-gana-mas-hoy (aunque ya se esperó a que cargara el JS)",
-    "leidsa: No se encontró un patrón válido de 'fecha/hora + 3 números en líneas separadas' para 'leidsa' en https://premios.do/resultados-leidsa-hoy (aunque ya se esperó a que cargara el JS)"
-  ]
+  "actualizado": "2026-08-12T00:23:54+00:00",
+  "loterias": {
+    "la_primera_noche": {
+      "fecha": "2026-08-11",
+      "numeros": [
+        72,
+        77,
+        33
+      ]
+    },
+    "loteka": {
+      "fecha": "2026-08-11",
+      "numeros": [
+        34,
+        2,
+        40
+      ]
+    },
+    "lotedom": {
+      "fecha": "2026-08-11",
+      "numeros": [
+        35,
+        74,
+        8
+      ]
+    },
+    "la_primera_12pm": {
+      "fecha": "2026-08-11",
+      "numeros": [
+        92,
+        82,
+        20
+      ]
+    },
+    "anguila_12pm": {
+      "fecha": "2026-08-11",
+      "numeros": [
+        12,
+        59,
+        60
+      ]
+    },
+    "gana_mas": {
+      "fecha": "2026-08-11",
+      "numeros": [
+        88,
+        28,
+        3
+      ]
+    },
+    "leidsa": {
+      "fecha": "2026-08-10",
+      "numeros": [
+        83,
+        46,
+        98
+      ]
+    }
+  },
+  "errores": []
 }
