@@ -1,60 +1,60 @@
 {
-  "actualizado": "2026-11-06T09:08:14+00:00",
+  "actualizado": "2026-11-07T08:26:49+00:00",
   "loterias": {
     "la_primera_noche": {
-      "fecha": "2026-11-05",
+      "fecha": "2026-11-06",
       "numeros": [
-        67,
-        64,
-        21
+        6,
+        68,
+        18
       ]
     },
     "loteka": {
-      "fecha": "2026-11-05",
+      "fecha": "2026-11-06",
       "numeros": [
-        98,
-        40,
-        77
-      ]
-    },
-    "lotedom": {
-      "fecha": "2026-11-05",
-      "numeros": [
-        38,
-        23,
-        73
-      ]
-    },
-    "la_primera_12pm": {
-      "fecha": "2026-11-05",
-      "numeros": [
-        6,
-        16,
-        49
-      ]
-    },
-    "anguila_12pm": {
-      "fecha": "2026-11-05",
-      "numeros": [
-        24,
-        13,
-        78
-      ]
-    },
-    "gana_mas": {
-      "fecha": "2026-11-05",
-      "numeros": [
-        10,
-        56,
+        12,
+        70,
         22
       ]
     },
-    "leidsa": {
-      "fecha": "2026-11-05",
+    "lotedom": {
+      "fecha": "2026-11-06",
       "numeros": [
-        55,
-        77,
-        78
+        24,
+        12,
+        57
+      ]
+    },
+    "la_primera_12pm": {
+      "fecha": "2026-11-06",
+      "numeros": [
+        28,
+        36,
+        34
+      ]
+    },
+    "anguila_12pm": {
+      "fecha": "2026-11-06",
+      "numeros": [
+        86,
+        46,
+        11
+      ]
+    },
+    "gana_mas": {
+      "fecha": "2026-11-06",
+      "numeros": [
+        6,
+        29,
+        97
+      ]
+    },
+    "leidsa": {
+      "fecha": "2026-11-06",
+      "numeros": [
+        56,
+        38,
+        67
       ]
     }
   },
